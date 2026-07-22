@@ -10,7 +10,7 @@
 
 **Focus on the Big 5 things that matter today.**
 
-<video src="https://github.com/fillsoko/open-focus/raw/main/assets/demo.mp4" controls muted loop width="900"></video>
+<img src="assets/demo.gif" alt="OpenFocus demo" width="900">
 
 [![Download](https://img.shields.io/badge/⬇%20Download-macOS-black?style=for-the-badge)](https://github.com/fillsoko/open-focus/releases/latest)
 &nbsp;
