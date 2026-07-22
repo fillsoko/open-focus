@@ -9,6 +9,9 @@ struct NotchView: View {
     var onStop: () -> Void
 
     @State private var blink: Bool = false
+    @State private var keyMonitor: Any?
+    @State private var timeBuffer: String = ""
+    @State private var timeBufferAt: Date = .distantPast
     @FocusState private var focused: RowField?
 
     enum RowField: Hashable {
@@ -36,7 +39,89 @@ struct NotchView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onAppear { blink = true }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) {
+                blink = true
+            }
+            installKeyMonitor()
+        }
+        .onDisappear { removeKeyMonitor() }
+    }
+
+    // MARK: - Keyboard shortcuts (arrow row-nav + typed minute selection)
+
+    private func installKeyMonitor() {
+        removeKeyMonitor()
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            handleKeyDown(event) ? nil : event
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let m = keyMonitor {
+            NSEvent.removeMonitor(m)
+            keyMonitor = nil
+        }
+    }
+
+    private func handleKeyDown(_ event: NSEvent) -> Bool {
+        guard let f = focused else { return false }
+        switch f {
+        case .text(let id):
+            if event.keyCode == 126 { focusPrevText(before: id); return true } // up
+            if event.keyCode == 125 { focusNextText(after: id); return true }  // down
+            return false
+        case .time(let id):
+            if event.keyCode == 126 { focused = .text(id); return true } // up back to text
+            if event.keyCode == 125 {
+                // down: move to next row's text
+                if let idx = draft.tasks.firstIndex(where: { $0.id == id }),
+                   idx + 1 < draft.tasks.count {
+                    focused = .text(draft.tasks[idx + 1].id)
+                }
+                return true
+            }
+            if let chars = event.characters, chars.count == 1,
+               let digit = chars.first, digit.isNumber {
+                handleTypedDigit(String(digit), for: id)
+                return true
+            }
+            return false
+        }
+    }
+
+    private func handleTypedDigit(_ digit: String, for id: UUID) {
+        let now = Date()
+        if now.timeIntervalSince(timeBufferAt) > 0.9 { timeBuffer = "" }
+        timeBuffer += digit
+        timeBufferAt = now
+
+        var matches = minutePresets.filter { String($0).hasPrefix(timeBuffer) }
+        if matches.isEmpty {
+            timeBuffer = digit
+            matches = minutePresets.filter { String($0).hasPrefix(timeBuffer) }
+        }
+        if let m = matches.first {
+            setMinutes(for: id, to: m)
+        } else {
+            timeBuffer = ""
+        }
+    }
+
+    private func setMinutes(for id: UUID, to m: Int) {
+        guard let idx = draft.tasks.firstIndex(where: { $0.id == id }) else { return }
+        draft.tasks[idx].minutes = m
+    }
+
+    private func focusPrevText(before id: UUID) {
+        guard let idx = draft.tasks.firstIndex(where: { $0.id == id }), idx > 0 else { return }
+        focused = .text(draft.tasks[idx - 1].id)
+    }
+
+    private func focusNextText(after id: UUID) {
+        guard let idx = draft.tasks.firstIndex(where: { $0.id == id }),
+              idx + 1 < draft.tasks.count else { return }
+        focused = .text(draft.tasks[idx + 1].id)
     }
 
     private var container: some View {
@@ -65,15 +150,12 @@ struct NotchView: View {
     }
 
     private var activeStrip: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
             Circle()
                 .fill(dotColor)
                 .frame(width: 9, height: 9)
                 .opacity(blink ? 1.0 : 0.25)
-                .animation(
-                    .easeInOut(duration: 0.7).repeatForever(autoreverses: true),
-                    value: blink
-                )
+                .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] + 4 }
             Text(session.current?.title ?? "")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.white)
@@ -82,8 +164,8 @@ struct NotchView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             if session.totalPlanned > 0 {
                 Text("\(session.currentIndex)/\(session.totalPlanned)")
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.45))
             }
             Text(FocusSession.format(session.remaining))
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
@@ -169,7 +251,7 @@ struct NotchView: View {
                 .foregroundStyle(.white)
                 .tint(.white)
                 .focused($focused, equals: .text(task.wrappedValue.id))
-                .onSubmit { goToNextText(after: task.wrappedValue.id) }
+                .onSubmit { focusNextText(after: task.wrappedValue.id) }
                 .onChange(of: task.wrappedValue.title) { newValue in
                     if newValue.count > titleCharLimit {
                         task.wrappedValue.title = String(newValue.prefix(titleCharLimit))
@@ -231,14 +313,6 @@ struct NotchView: View {
         }
     }
 
-    private func goToNextText(after id: UUID) {
-        guard let idx = draft.tasks.firstIndex(where: { $0.id == id }) else { return }
-        if idx + 1 < draft.tasks.count {
-            focused = .text(draft.tasks[idx + 1].id)
-        } else {
-            focused = nil
-        }
-    }
 
 private var startBar: some View {
         HStack {

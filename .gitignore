@@ -4,3 +4,7 @@ DerivedData/
 Package.resolved
 *.xcodeproj/
 .DS_Store
+dist/
+AppIcon.iconset/
+AppIcon.icns
+assets/wallpaper.jpg
