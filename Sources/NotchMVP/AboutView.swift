@@ -26,6 +26,8 @@ struct AboutView: View {
                             "Your current task, blinking dot and countdown live in the notch. Click ✓ to complete — confetti cannon from your cursor.")
                 explanation("Stop Focus",
                             "Menu bar → Stop Focus. Ends the session, hides the notch.")
+                explanation("Menu bar stays minimal",
+                            "Only the app icon. Never the task title — the notch is where the task lives.")
                 explanation("Launch at Login · Check for Updates",
                             "In the menu bar. Auto-update via GitHub Releases.")
             }
@@ -34,7 +36,7 @@ struct AboutView: View {
 
             HStack {
                 Spacer()
-                Text("OPENFOCUS · v0.1")
+                Text("OPENFOCUS · v0.2")
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.35))
             }

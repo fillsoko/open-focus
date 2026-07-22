@@ -194,12 +194,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     private func updateStatusTitle() {
-        guard let button = statusItem?.button else { return }
-        if let t = session.current {
-            button.title = " " + t.title.prefix(24)
-        } else {
-            button.title = ""
-        }
+        // Menu bar shows only the app icon — never the current task title.
+        statusItem?.button?.title = ""
     }
 
     // MARK: - About window

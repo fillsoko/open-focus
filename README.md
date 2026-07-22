@@ -61,7 +61,7 @@ Requires Xcode command-line tools.
 - **↑ ↓** move between rows in text or time.
 - The currently focused time selection **pulses** so you always know where you are.
 - Click **✓** in the notch to complete — a **confetti cannon fires from your cursor for 2.5 seconds**, following you if you move.
-- **Stop Focus** in the menu bar to end early. **Launch at Login** and **Check for Updates…** live there too.
+- **Stop Focus** in the menu bar to end early. **Launch at Login** and **Check for Updates…** live there too. The menu bar shows only the icon — the notch owns the task.
 
 ## Built with
 

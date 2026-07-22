@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_NAME="OpenFocus"
-VERSION="0.1.0"
+VERSION="0.2.0"
 DIST="dist"
 APP="$DIST/$APP_NAME.app"
 DMG="$DIST/$APP_NAME-$VERSION.dmg"
