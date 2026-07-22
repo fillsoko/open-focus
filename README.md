@@ -15,13 +15,11 @@
 ![SwiftUI](https://img.shields.io/badge/SwiftUI-native-blue)
 ![License](https://img.shields.io/badge/license-MIT-black)
 
-<img src="assets/icon-hero.png" width="180" alt="OpenFocus icon">
-
 </div>
 
 ---
 
-A tiny macOS focus timer that lives inside your notch. Enter up to 5 tasks, hit start, and the notch takes over — current task, countdown, nothing else. Click it to complete. Confetti.
+A tiny macOS focus timer that lives inside your notch. Enter up to 5 tasks, hit start, and the notch takes over — current task, countdown, nothing else. Click the ✓ to complete. Confetti cannon fires from your cursor.
 
 <div align="center">
 
@@ -32,6 +30,10 @@ A tiny macOS focus timer that lives inside your notch. Enter up to 5 tasks, hit 
 <img src="assets/screenshots/active.png" alt="Active timer under the notch" width="900">
 
 <sub>Active mode — current task + countdown, in the notch</sub>
+
+<img src="assets/screenshots/confetti.png" alt="Confetti cannon from cursor" width="900">
+
+<sub>Done — confetti cannon fires from your cursor</sub>
 
 </div>
 
@@ -51,18 +53,20 @@ Requires Xcode command-line tools.
 
 ## Use
 
-- **Start Focus** in the menu bar → drop-down opens under your notch.
-- Type up to 5 tasks. `Tab` into the time chips, `← →` to pick `5 / 10 / 15 / 30 / 60`, or just type a number (`1` → `10`, `1` `5` → `15`).
-- `↑ ↓` in text fields jump between rows.
-- `⌘ ↩` to start. The notch becomes your timer.
-- **Click the notch** to complete the current task. Confetti falls at your cursor.
-- **Stop Focus** in the menu bar to end early.
-- **Launch at Login** and **Check for Updates…** in the menu bar.
+- **Start Focus** in the menu bar → drop-down opens under your notch. Row 1 is auto-focused.
+- **Type**, then **Tab** or `→` (at end of text) to jump to time chips. `← →` cycle `5 / 10 / 15 / 30 / 60`, or just type a number (`1` → `10`, then `5` → `15`).
+- **Enter in text** → time chip of same row.
+  **Enter on time chip** → confirms and moves to next row.
+  **Enter on row 5 time chip** → starts the session.
+- **↑ ↓** move between rows in text or time.
+- The currently focused time selection **pulses** so you always know where you are.
+- Click **✓** in the notch to complete — a **confetti cannon fires from your cursor for 2.5 seconds**, following you if you move.
+- **Stop Focus** in the menu bar to end early. **Launch at Login** and **Check for Updates…** live there too.
 
 ## Built with
 
 - Swift 5.9 · SwiftUI · AppKit
-- `NSPanel` overlay pinned to the built-in display's notch
+- `NSPanel` overlay pinned above the built-in display's notch
 - `SMAppService` for launch-at-login
 - No third-party dependencies
 

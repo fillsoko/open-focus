@@ -32,9 +32,11 @@ enum ScreenshotGenerator {
                filename: "input-filled.png", to: out)
         render(state: .active, wallpaper: wallpaper,
                filename: "active.png", to: out)
+        render(state: .confetti, wallpaper: wallpaper,
+               filename: "confetti.png", to: out)
     }
 
-    private enum State { case inputEmpty, inputFilled, active }
+    private enum State { case inputEmpty, inputFilled, active, confetti }
 
     private static func render(state: State,
                                 wallpaper: NSImage,
@@ -52,7 +54,7 @@ enum ScreenshotGenerator {
             draft.tasks[2] = TaskItem(title: "Draft board deck",     minutes: 60, priority: .high)
             draft.tasks[3] = TaskItem(title: "Design review",        minutes: 30, priority: .medium)
             draft.tasks[4] = TaskItem(title: "Inbox zero",           minutes: 15, priority: .low)
-        case .active:
+        case .active, .confetti:
             let tasks = [
                 TaskItem(title: "Ship investor update", minutes: 45, priority: .high),
                 TaskItem(title: "Review PR #142",       minutes: 25, priority: .medium),
@@ -72,14 +74,16 @@ enum ScreenshotGenerator {
         )
 
         let uiWidth: CGFloat = 380
-        let uiHeight: CGFloat = (state == .active) ? 90 : 320
+        let uiHeight: CGFloat = (state == .active || state == .confetti) ? 90 : 320
+        let drawConfetti = (state == .confetti)
 
         let composed = compose(wallpaper: wallpaper,
                                 uiViewBase: uiView,
                                 uiBaseWidth: uiWidth,
                                 uiBaseHeight: uiHeight,
                                 uiWidth: uiWidth * uiScale,
-                                uiHeight: uiHeight * uiScale)
+                                uiHeight: uiHeight * uiScale,
+                                drawConfetti: drawConfetti)
         guard let cg = composed else {
             print("compose failed for \(filename)")
             return
@@ -92,7 +96,8 @@ enum ScreenshotGenerator {
                                           uiBaseWidth: CGFloat,
                                           uiBaseHeight: CGFloat,
                                           uiWidth: CGFloat,
-                                          uiHeight: CGFloat) -> CGImage? {
+                                          uiHeight: CGFloat,
+                                          drawConfetti: Bool = false) -> CGImage? {
         let scale: CGFloat = 1
         let cs = CGColorSpaceCreateDeviceRGB()
         guard let ctx = CGContext(
@@ -177,7 +182,78 @@ enum ScreenshotGenerator {
         ctx.setFillColor(CGColor(gray: 0, alpha: 1))
         ctx.fillPath()
 
+        if drawConfetti {
+            drawConfettiSnapshot(ctx: ctx)
+        }
+
         return ctx.makeImage()
+    }
+
+    private static func drawConfettiSnapshot(ctx: CGContext) {
+        // Fake cursor position in the lower-right third of the screen
+        let cursor = CGPoint(x: canvasWidth * 0.62, y: canvasHeight * 0.42)
+
+        // Draw a subtle cursor arrow at the origin
+        let cursorPath = CGMutablePath()
+        cursorPath.move(to: cursor)
+        cursorPath.addLine(to: CGPoint(x: cursor.x + 26, y: cursor.y - 34))
+        cursorPath.addLine(to: CGPoint(x: cursor.x + 10, y: cursor.y - 34))
+        cursorPath.addLine(to: CGPoint(x: cursor.x + 18, y: cursor.y - 52))
+        cursorPath.addLine(to: CGPoint(x: cursor.x + 10, y: cursor.y - 56))
+        cursorPath.addLine(to: CGPoint(x: cursor.x + 2, y: cursor.y - 38))
+        cursorPath.addLine(to: CGPoint(x: cursor.x - 12, y: cursor.y - 24))
+        cursorPath.closeSubpath()
+        ctx.addPath(cursorPath)
+        ctx.setFillColor(CGColor(gray: 1, alpha: 0.95))
+        ctx.fillPath()
+        ctx.addPath(cursorPath)
+        ctx.setStrokeColor(CGColor(gray: 0, alpha: 1))
+        ctx.setLineWidth(3)
+        ctx.strokePath()
+
+        // Palette matching the app confetti
+        let colors: [CGColor] = [
+            CGColor(red: 0.93, green: 0.24, blue: 0.28, alpha: 1),
+            CGColor(red: 0.98, green: 0.60, blue: 0.20, alpha: 1),
+            CGColor(red: 0.98, green: 0.85, blue: 0.20, alpha: 1),
+            CGColor(red: 0.30, green: 0.78, blue: 0.42, alpha: 1),
+            CGColor(red: 0.30, green: 0.75, blue: 0.90, alpha: 1),
+            CGColor(red: 0.30, green: 0.45, blue: 0.98, alpha: 1),
+            CGColor(red: 0.60, green: 0.35, blue: 0.90, alpha: 1),
+            CGColor(red: 0.95, green: 0.45, blue: 0.72, alpha: 1)
+        ]
+
+        // Snapshot the physics at elapsed ~= 0.55s
+        let elapsed: Double = 0.55
+        var rng = SystemRandomNumberGenerator()
+
+        for _ in 0..<180 {
+            let birth = Double.random(in: 0...(elapsed - 0.02), using: &rng)
+            let localT = elapsed - birth
+            if localT <= 0 { continue }
+            let lifetime = Double.random(in: 1.4...2.0, using: &rng)
+            if localT >= lifetime { continue }
+
+            let vx = CGFloat.random(in: -280...280, using: &rng)
+            let vy = CGFloat.random(in: -560 ... -320, using: &rng)
+            let rotation = CGFloat.random(in: -12...12, using: &rng)
+            let size = CGFloat.random(in: 8...16, using: &rng) * 1.6
+            let color = colors.randomElement(using: &rng)!
+
+            let dt = CGFloat(localT)
+            let x = cursor.x + vx * dt
+            let y = cursor.y - (vy * dt + 900 * dt * dt)  // canvas y-up
+            let alpha = CGFloat(1.0 - localT / lifetime)
+
+            ctx.saveGState()
+            ctx.translateBy(x: x, y: y)
+            ctx.rotate(by: CGFloat(rotation * dt))
+            ctx.setAlpha(alpha)
+            let rect = CGRect(x: -size / 2, y: -size / 3, width: size, height: size * 0.6)
+            ctx.setFillColor(color)
+            ctx.fill(rect)
+            ctx.restoreGState()
+        }
     }
 
     private static func savePNG(_ image: CGImage, to url: URL) {

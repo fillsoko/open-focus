@@ -1,40 +1,62 @@
 import AppKit
 import SwiftUI
 
-private struct Particle: Identifiable {
+private struct ActiveParticle: Identifiable {
     let id = UUID()
+    let origin: CGPoint        // screen coords (bottom-up)
+    let birthTime: Date
     let vx: CGFloat
-    let vy: CGFloat
+    let vy: CGFloat            // positive = downward
     let rotation: CGFloat
     let color: Color
     let lifetime: TimeInterval
     let size: CGFloat
+}
 
-    init() {
-        vx = .random(in: -220...220)
-        vy = .random(in: 60...220)
-        rotation = .random(in: -10...10)
-        color = [.red, .orange, .yellow, .green, .cyan, .blue, .purple, .pink].randomElement()!
-        lifetime = .random(in: 0.9...1.4)
-        size = .random(in: 5...9)
+private final class ConfettiState: ObservableObject {
+    @Published var particles: [ActiveParticle] = []
+
+    func spawn(at origin: CGPoint, count: Int) {
+        let now = Date()
+        for _ in 0..<count {
+            particles.append(ActiveParticle(
+                origin: origin,
+                birthTime: now,
+                vx: .random(in: -280...280),
+                // Negative = upward in canvas coords (y-down). Cannon launches
+                // particles up, gravity pulls them back through the origin.
+                vy: .random(in: -560 ... -320),
+                rotation: .random(in: -12...12),
+                color: [.red, .orange, .yellow, .green, .cyan, .blue, .purple, .pink].randomElement()!,
+                lifetime: .random(in: 1.4...2.0),
+                size: .random(in: 5...10)
+            ))
+        }
+    }
+
+    func prune(before cutoff: Date) {
+        particles.removeAll { cutoff.timeIntervalSince($0.birthTime) > $0.lifetime }
     }
 }
 
-private struct ConfettiView: View {
-    private let particles: [Particle] = (0..<60).map { _ in Particle() }
-    private let start = Date()
+private struct ConfettiCanvas: View {
+    @ObservedObject var state: ConfettiState
+    let panelOrigin: CGPoint     // screen coords of panel bottom-left
+    let panelHeight: CGFloat
 
     var body: some View {
-        TimelineView(.animation) { timeline in
-            let t = timeline.date.timeIntervalSince(start)
-            Canvas { ctx, size in
-                let origin = CGPoint(x: size.width / 2, y: 4)
-                for p in particles {
-                    let progress = t / p.lifetime
-                    guard progress >= 0 && progress <= 1 else { continue }
-                    let dt = CGFloat(t)
-                    let x = origin.x + p.vx * dt
-                    let y = origin.y + p.vy * dt + 900 * dt * dt
+        TimelineView(.animation) { context in
+            Canvas { ctx, _ in
+                for p in state.particles {
+                    let localT = context.date.timeIntervalSince(p.birthTime)
+                    guard localT >= 0 && localT <= p.lifetime else { continue }
+                    let dt = CGFloat(localT)
+                    // Convert particle origin from screen (bottom-up) to canvas (top-down)
+                    let baseX = p.origin.x - panelOrigin.x
+                    let baseY = panelHeight - (p.origin.y - panelOrigin.y)
+                    let x = baseX + p.vx * dt
+                    let y = baseY + p.vy * dt + 900 * dt * dt
+                    let progress = localT / p.lifetime
                     let alpha = 1.0 - progress
 
                     ctx.drawLayer { sub in
@@ -63,19 +85,20 @@ private final class ConfettiPanel: NSPanel {
 
 final class ConfettiPresenter {
     private var panel: ConfettiPanel?
+    private var state: ConfettiState?
+    private var emissionTimer: Timer?
+    private var pruneTimer: Timer?
 
     func present() {
         panel?.orderOut(nil)
+        emissionTimer?.invalidate()
+        pruneTimer?.invalidate()
 
-        let mouse = NSEvent.mouseLocation
-        let panelWidth: CGFloat = 360
-        let panelHeight: CGFloat = 420
-        let rect = NSRect(
-            x: mouse.x - panelWidth / 2,
-            y: mouse.y - panelHeight,
-            width: panelWidth,
-            height: panelHeight
-        )
+        guard let screen = NSScreen.main else { return }
+        let rect = screen.frame
+
+        let panelState = ConfettiState()
+        state = panelState
 
         let p = ConfettiPanel(
             contentRect: rect,
@@ -92,7 +115,11 @@ final class ConfettiPresenter {
         p.hidesOnDeactivate = false
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
 
-        let host = NSHostingView(rootView: ConfettiView())
+        let host = NSHostingView(rootView: ConfettiCanvas(
+            state: panelState,
+            panelOrigin: rect.origin,
+            panelHeight: rect.height
+        ))
         host.frame = p.contentView!.bounds
         host.autoresizingMask = [.width, .height]
         p.contentView = host
@@ -100,9 +127,38 @@ final class ConfettiPresenter {
         p.orderFrontRegardless()
         panel = p
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+        let emissionDuration: TimeInterval = 2.5
+        let maxParticleLifetime: TimeInterval = 1.8
+        let totalDuration = emissionDuration + maxParticleLifetime + 0.2
+        let startTime = Date()
+
+        emissionTimer = Timer.scheduledTimer(withTimeInterval: 0.045, repeats: true) { [weak self] timer in
+            guard let self, let s = self.state else {
+                timer.invalidate()
+                return
+            }
+            let elapsed = Date().timeIntervalSince(startTime)
+            if elapsed > emissionDuration {
+                timer.invalidate()
+                return
+            }
+            let mouse = NSEvent.mouseLocation
+            // Cannon-taper: emit more particles early, tapering off
+            let progress = elapsed / emissionDuration
+            let count = max(2, Int(9 * (1 - progress * 0.6)))
+            s.spawn(at: mouse, count: count)
+        }
+
+        pruneTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { [weak self] _ in
+            self?.state?.prune(before: Date())
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + totalDuration) { [weak self] in
+            self?.emissionTimer?.invalidate()
+            self?.pruneTimer?.invalidate()
             self?.panel?.orderOut(nil)
             self?.panel = nil
+            self?.state = nil
         }
     }
 }

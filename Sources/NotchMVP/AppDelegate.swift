@@ -268,8 +268,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             defer: false
         )
         panel.isFloatingPanel = true
-        panel.level = .statusBar
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        panel.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()) - 1)
+        panel.collectionBehavior = [
+            .canJoinAllSpaces,
+            .fullScreenAuxiliary,
+            .stationary,
+            .ignoresCycle,
+            .fullScreenDisallowsTiling
+        ]
         panel.hasShadow = false
         panel.backgroundColor = .clear
         panel.isOpaque = false
@@ -293,6 +299,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         panel.contentView = host
 
         panel.orderFrontRegardless()
+        panel.makeKey()
         notchPanel = panel
     }
 

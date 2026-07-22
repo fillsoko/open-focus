@@ -42,6 +42,7 @@ struct TaskItem: Identifiable, Equatable {
     var title: String
     var minutes: Int
     var priority: Priority = .medium
+    var minutesConfirmed: Bool = false
 }
 
 final class FocusSession: ObservableObject {
@@ -128,10 +129,13 @@ final class FocusSession: ObservableObject {
 
 final class DraftStore: ObservableObject {
     static let maxTasks = 5
+    static let defaultMinutes = 5
     @Published var tasks: [TaskItem] = DraftStore.emptySlots()
 
     static func emptySlots() -> [TaskItem] {
-        (0..<maxTasks).map { _ in TaskItem(title: "", minutes: 25) }
+        // minutes = 0 = "unset" (no chip highlighted). Snapped to defaultMinutes
+        // when user reaches the time chip.
+        (0..<maxTasks).map { _ in TaskItem(title: "", minutes: 0) }
     }
 
     func reset() {

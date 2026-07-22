@@ -19,6 +19,16 @@ struct NotchView: View {
         case time(UUID)
     }
 
+    struct NoFocusRing: ViewModifier {
+        func body(content: Content) -> some View {
+            if #available(macOS 14.0, *) {
+                content.focusEffectDisabled()
+            } else {
+                content
+            }
+        }
+    }
+
     private let minutePresets = [5, 10, 15, 30, 60]
 
     private var isRunning: Bool { session.isRunning }
@@ -44,6 +54,11 @@ struct NotchView: View {
                 blink = true
             }
             installKeyMonitor()
+            if !isRunning, let first = draft.tasks.first {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    focused = .text(first.id)
+                }
+            }
         }
         .onDisappear { removeKeyMonitor() }
     }
@@ -68,16 +83,64 @@ struct NotchView: View {
         guard let f = focused else { return false }
         switch f {
         case .text(let id):
+            if event.keyCode == 48 { // tab: jump to time chips of same row
+                snapToNearestPreset(for: id)
+                focused = .time(id)
+                return true
+            }
+            if event.keyCode == 124 { // right: at end of text → jump to time chips
+                if isCursorAtTextEnd() {
+                    snapToNearestPreset(for: id)
+                    focused = .time(id)
+                    return true
+                }
+                return false
+            }
             if event.keyCode == 126 { focusPrevText(before: id); return true } // up
             if event.keyCode == 125 { focusNextText(after: id); return true }  // down
             return false
+
         case .time(let id):
-            if event.keyCode == 126 { focused = .text(id); return true } // up back to text
-            if event.keyCode == 125 {
-                // down: move to next row's text
-                if let idx = draft.tasks.firstIndex(where: { $0.id == id }),
-                   idx + 1 < draft.tasks.count {
-                    focused = .text(draft.tasks[idx + 1].id)
+            if event.keyCode == 123 { // left
+                guard let idx = draft.tasks.firstIndex(where: { $0.id == id }) else { return true }
+                if draft.tasks[idx].minutes == minutePresets.first {
+                    focused = .text(id)
+                } else {
+                    cycleMinutes(for: id, direction: .left)
+                }
+                return true
+            }
+            if event.keyCode == 124 { // right: cycle up
+                cycleMinutes(for: id, direction: .right)
+                return true
+            }
+            if event.keyCode == 126 { // up: prev row's time (wrap)
+                confirmMinutes(for: id)
+                focused = .time(prevOrLastTaskID(from: id))
+                return true
+            }
+            if event.keyCode == 36 { // return: last row starts session, else next text
+                confirmMinutes(for: id)
+                if isLastRow(id) {
+                    startSession()
+                } else if let next = nextTaskID(after: id) {
+                    focused = .text(next)
+                } else {
+                    focused = nil
+                }
+                return true
+            }
+            if event.keyCode == 125 { // down: next row's time (wrap)
+                confirmMinutes(for: id)
+                focused = .time(nextOrFirstTaskID(from: id))
+                return true
+            }
+            if event.keyCode == 48 { // tab: cycle to next row's text (wrap)
+                confirmMinutes(for: id)
+                if let next = nextTaskID(after: id) {
+                    focused = .text(next)
+                } else if let first = draft.tasks.first?.id {
+                    focused = .text(first)
                 }
                 return true
             }
@@ -87,6 +150,58 @@ struct NotchView: View {
                 return true
             }
             return false
+        }
+    }
+
+    private func isCursorAtTextEnd() -> Bool {
+        guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView else { return false }
+        let ns = editor.string as NSString
+        return editor.selectedRange.location == ns.length && editor.selectedRange.length == 0
+    }
+
+    private func prevOrLastTaskID(from id: UUID) -> UUID {
+        guard let idx = draft.tasks.firstIndex(where: { $0.id == id }) else { return id }
+        if idx > 0 { return draft.tasks[idx - 1].id }
+        return draft.tasks.last?.id ?? id
+    }
+
+    private func nextOrFirstTaskID(from id: UUID) -> UUID {
+        guard let idx = draft.tasks.firstIndex(where: { $0.id == id }) else { return id }
+        if idx + 1 < draft.tasks.count { return draft.tasks[idx + 1].id }
+        return draft.tasks.first?.id ?? id
+    }
+
+    private func snapToNearestPreset(for id: UUID) {
+        guard let idx = draft.tasks.firstIndex(where: { $0.id == id }) else { return }
+        if !minutePresets.contains(draft.tasks[idx].minutes),
+           let first = minutePresets.first {
+            draft.tasks[idx].minutes = first
+        }
+    }
+
+    private func confirmMinutes(for id: UUID) {
+        guard let idx = draft.tasks.firstIndex(where: { $0.id == id }) else { return }
+        draft.tasks[idx].minutesConfirmed = true
+    }
+
+    @ViewBuilder
+    private func chipLabel(minute: Int, selected: Bool, blinking: Bool) -> some View {
+        let baseText = Text("\(minute)")
+            .font(.system(size: 12,
+                          weight: selected ? .bold : .regular,
+                          design: .monospaced))
+            .foregroundStyle(selected ? .white : .white.opacity(0.32))
+            .frame(minWidth: 14)
+            .contentShape(Rectangle())
+
+        if blinking {
+            TimelineView(.animation(minimumInterval: 0.05)) { context in
+                let t = context.date.timeIntervalSince1970
+                let opacity = 0.4 + 0.6 * (0.5 + 0.5 * sin(t * .pi / 0.5))
+                baseText.opacity(opacity)
+            }
+        } else {
+            baseText
         }
     }
 
@@ -113,6 +228,15 @@ struct NotchView: View {
         draft.tasks[idx].minutes = m
     }
 
+    private func cyclePriority(for id: UUID) {
+        guard let idx = draft.tasks.firstIndex(where: { $0.id == id }) else { return }
+        let current = draft.tasks[idx].priority
+        let all = Priority.allCases
+        let currentPos = all.firstIndex(of: current) ?? 0
+        let next = all[(currentPos + 1) % all.count]
+        draft.tasks[idx].priority = next
+    }
+
     private func focusPrevText(before id: UUID) {
         guard let idx = draft.tasks.firstIndex(where: { $0.id == id }), idx > 0 else { return }
         focused = .text(draft.tasks[idx - 1].id)
@@ -122,6 +246,16 @@ struct NotchView: View {
         guard let idx = draft.tasks.firstIndex(where: { $0.id == id }),
               idx + 1 < draft.tasks.count else { return }
         focused = .text(draft.tasks[idx + 1].id)
+    }
+
+    private func isLastRow(_ id: UUID) -> Bool {
+        draft.tasks.last?.id == id
+    }
+
+    private func nextTaskID(after id: UUID) -> UUID? {
+        guard let idx = draft.tasks.firstIndex(where: { $0.id == id }),
+              idx + 1 < draft.tasks.count else { return nil }
+        return draft.tasks[idx + 1].id
     }
 
     private var container: some View {
@@ -150,33 +284,54 @@ struct NotchView: View {
     }
 
     private var activeStrip: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Circle()
-                .fill(dotColor)
-                .frame(width: 9, height: 9)
-                .opacity(blink ? 1.0 : 0.25)
-                .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] + 4 }
+        // Uniform row height for every element -> .center actually centers.
+        let rowH: CGFloat = 22
+        return HStack(alignment: .center, spacing: 10) {
+            TimelineView(.animation(minimumInterval: 0.05)) { context in
+                let t = context.date.timeIntervalSince1970
+                let opacity = 0.35 + 0.65 * (0.5 + 0.5 * sin(t * .pi / 0.65))
+                Circle()
+                    .fill(dotColor)
+                    .frame(width: 9, height: 9)
+                    .opacity(opacity)
+            }
+            .frame(width: 12, height: rowH)
+
             Text(session.current?.title ?? "")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: rowH)
+
             if session.totalPlanned > 0 {
                 Text("\(session.currentIndex)/\(session.totalPlanned)")
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.45))
+                    .frame(height: rowH)
             }
+
             Text(FocusSession.format(session.remaining))
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
                 .foregroundStyle(.white)
                 .monospacedDigit()
+                .frame(height: rowH)
+
+            Button(action: onDone) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 16, height: 16)
+                    .background(Circle().fill(Color.green.opacity(0.85)))
+            }
+            .buttonStyle(.plain)
+            .frame(height: rowH)
+            .help("Complete task")
         }
         .padding(.top, notchHeight)
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 12)
         .padding(.bottom, 8)
-        .contentShape(Rectangle())
-        .onTapGesture { onDone() }
     }
 
     // MARK: - Input mode
@@ -216,28 +371,14 @@ struct NotchView: View {
     @ViewBuilder
     private func inputRow(index: Int, task: Binding<TaskItem>) -> some View {
         HStack(spacing: 10) {
-            Text("\(index)")
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.32))
-                .frame(width: 10, alignment: .leading)
-
-            Menu {
-                ForEach(Priority.allCases.reversed()) { p in
-                    Button {
-                        task.wrappedValue.priority = p
-                    } label: {
-                        Label(p.label, systemImage: p.symbol)
-                    }
-                }
-            } label: {
-                Image(systemName: task.wrappedValue.priority.symbol)
-                    .font(.system(size: 12))
-                    .foregroundStyle(task.wrappedValue.priority.color)
-                    .frame(width: 14)
+            ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                    .frame(width: 18, height: 18)
+                Text("\(index)")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.75))
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
 
             TextField(
                 "",
@@ -251,7 +392,12 @@ struct NotchView: View {
                 .foregroundStyle(.white)
                 .tint(.white)
                 .focused($focused, equals: .text(task.wrappedValue.id))
-                .onSubmit { focusNextText(after: task.wrappedValue.id) }
+                .onSubmit {
+                    // Enter in text field → jump to time chip of same row.
+                    // Confirming time (Enter on time chip) is what advances rows / starts.
+                    snapToNearestPreset(for: task.wrappedValue.id)
+                    focused = .time(task.wrappedValue.id)
+                }
                 .onChange(of: task.wrappedValue.title) { newValue in
                     if newValue.count > titleCharLimit {
                         task.wrappedValue.title = String(newValue.prefix(titleCharLimit))
@@ -259,37 +405,23 @@ struct NotchView: View {
                 }
 
             let taskID = task.wrappedValue.id
+            let isTimeFocused = focused == .time(taskID)
             HStack(spacing: 6) {
                 ForEach(minutePresets, id: \.self) { m in
                     Button {
                         task.wrappedValue.minutes = m
+                        task.wrappedValue.minutesConfirmed = true
                     } label: {
                         let selected = task.wrappedValue.minutes == m
-                        Text("\(m)")
-                            .font(.system(size: 12,
-                                          weight: selected ? .bold : .regular,
-                                          design: .monospaced))
-                            .foregroundStyle(selected ? .white : .white.opacity(0.32))
-                            .frame(minWidth: 14)
-                            .contentShape(Rectangle())
+                        let shouldBlink = selected && isTimeFocused
+                        chipLabel(minute: m, selected: selected, blinking: shouldBlink)
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(
-                Capsule().fill(
-                    focused == .time(taskID)
-                        ? Color.white.opacity(0.08)
-                        : Color.clear
-                )
-            )
             .focusable()
+            .modifier(NoFocusRing())
             .focused($focused, equals: .time(taskID))
-            .onMoveCommand { direction in
-                cycleMinutes(for: taskID, direction: direction)
-            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 5)
@@ -347,9 +479,13 @@ private var startBar: some View {
 
     private func startSession() {
         let cleaned = draft.tasks
-            .map { TaskItem(title: $0.title.trimmingCharacters(in: .whitespaces),
-                            minutes: $0.minutes,
-                            priority: $0.priority) }
+            .map {
+                TaskItem(
+                    title: $0.title.trimmingCharacters(in: .whitespaces),
+                    minutes: $0.minutes > 0 ? $0.minutes : DraftStore.defaultMinutes,
+                    priority: $0.priority
+                )
+            }
             .filter { !$0.title.isEmpty }
         guard !cleaned.isEmpty else { return }
         session.start(with: cleaned)

@@ -10,9 +10,9 @@ let openLines = [
     "█▄█ █▀▀ ██▄ █░▀█"
 ]
 
-let notchLines = [
-    "█▄░█ █▀█ ▀█▀ █▀▀ █░█",
-    "█░▀█ █▄█ ░█░ █▄▄ █▀█"
+let focusLines = [
+    "█▀▀ █▀█ █▀▀ █░█ █▀",
+    "█▀░ █▄█ █▄▄ █▄█ ▄█"
 ]
 
 func makeIconImage(size: CGFloat) -> CGImage? {
@@ -38,7 +38,7 @@ func makeIconImage(size: CGFloat) -> CGImage? {
     ctx.setFillColor(CGColor(gray: 0, alpha: 1))
     ctx.fillPath()
 
-    let notchWidthChars: CGFloat = CGFloat(notchLines[0].count)
+    let notchWidthChars: CGFloat = CGFloat(focusLines[0].count)
     let usableWidth = rect.width * 0.80
     let charWidth = usableWidth / notchWidthChars
     let fontSize = charWidth / 0.55
@@ -53,7 +53,7 @@ func makeIconImage(size: CGFloat) -> CGImage? {
     ctx.textMatrix = .identity
 
     let openBlockH = CGFloat(openLines.count) * lineHeight
-    let notchBlockH = CGFloat(notchLines.count) * lineHeight
+    let notchBlockH = CGFloat(focusLines.count) * lineHeight
     let gap = lineHeight * 1.3
     let totalH = openBlockH + gap + notchBlockH
 
@@ -74,7 +74,7 @@ func makeIconImage(size: CGFloat) -> CGImage? {
     }
 
     draw(lines: openLines, topY: openTop)
-    draw(lines: notchLines, topY: notchTop)
+    draw(lines: focusLines, topY: notchTop)
 
     return ctx.makeImage()
 }

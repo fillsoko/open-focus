@@ -13,17 +13,21 @@ struct AboutView: View {
 
             Divider().overlay(Color.white.opacity(0.1))
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 explanation("Start Focus",
-                            "In the menu bar. Opens the input drop-down under your notch.")
+                            "Menu bar → Start Focus. The input drops down from your notch. Row 1 is focused, ready to type.")
                 explanation("Add up to 5 tasks",
-                            "Priority · title · minutes. Tab into times, ← → to pick 5/10/15/30/60.")
+                            "Type task, Tab to time chips, ← → to pick 5/10/15/30/60, or type a number (1 → 10, 15).")
+                explanation("Enter flow",
+                            "Enter in text jumps to time chips. Enter on a time chip confirms and moves to next row. Enter on row 5 time chip starts.")
+                explanation("Arrow keys",
+                            "↑ ↓ move between rows. → at end of text jumps to time. ← on 5 jumps back to text. ↑ ↓ in time cycle time chips across rows.")
                 explanation("Notch takes over",
-                            "Your current task and countdown live under the notch. Nothing else in the way.")
-                explanation("Click to complete",
-                            "Tap the strip to mark the current task done. Confetti says hi.")
+                            "Your current task, blinking dot and countdown live in the notch. Click ✓ to complete — confetti cannon from your cursor.")
                 explanation("Stop Focus",
-                            "In the menu bar. Ends the session and hides the notch.")
+                            "Menu bar → Stop Focus. Ends the session, hides the notch.")
+                explanation("Launch at Login · Check for Updates",
+                            "In the menu bar. Auto-update via GitHub Releases.")
             }
 
             Spacer(minLength: 0)
@@ -36,7 +40,7 @@ struct AboutView: View {
             }
         }
         .padding(28)
-        .frame(width: 520, height: 440)
+        .frame(width: 560, height: 500)
         .background(Color.black)
         .preferredColorScheme(.dark)
     }
