@@ -49,11 +49,11 @@ enum ScreenshotGenerator {
         case .inputEmpty:
             break
         case .inputFilled:
-            draft.tasks[0] = TaskItem(title: "Ship investor update", minutes: 45, priority: .high)
-            draft.tasks[1] = TaskItem(title: "Review PR #142",       minutes: 25, priority: .medium)
+            draft.tasks[0] = TaskItem(title: "Ship investor update", minutes: 30, priority: .high)
+            draft.tasks[1] = TaskItem(title: "Review PR #142",       minutes: 15, priority: .medium)
             draft.tasks[2] = TaskItem(title: "Draft board deck",     minutes: 60, priority: .high)
-            draft.tasks[3] = TaskItem(title: "Design review",        minutes: 30, priority: .medium)
-            draft.tasks[4] = TaskItem(title: "Inbox zero",           minutes: 15, priority: .low)
+            draft.tasks[3] = TaskItem(title: "Design review",        minutes: 10, priority: .medium)
+            draft.tasks[4] = TaskItem(title: "Inbox zero",           minutes: 5,  priority: .low)
         case .active, .confetti:
             let tasks = [
                 TaskItem(title: "Ship investor update", minutes: 45, priority: .high),
