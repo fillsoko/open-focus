@@ -53,15 +53,14 @@ Requires Xcode command-line tools.
 
 ## Use
 
-- **Start Focus** in the menu bar → drop-down opens under your notch. Row 1 is auto-focused.
-- **Type**, then **Tab** or `→` (at end of text) to jump to time chips. `← →` cycle `5 / 10 / 15 / 30 / 60`, or just type a number (`1` → `10`, then `5` → `15`).
-- **Enter in text** → time chip of same row.
-  **Enter on time chip** → confirms and moves to next row.
-  **Enter on row 5 time chip** → starts the session.
-- **↑ ↓** move between rows in text or time.
-- The currently focused time selection **pulses** so you always know where you are.
-- Click **✓** in the notch to complete — a **confetti cannon fires from your cursor for 2.5 seconds**, following you if you move.
-- **Stop Focus** in the menu bar to end early. **Launch at Login** and **Check for Updates…** live there too. The menu bar shows only the icon — the notch owns the task.
+Click **Start Focus** in the menu bar. Type your tasks and start.
+
+- **Tab** — text field → time chips → next row
+- **Enter** — text field → time chips → next row → start session (on row 5)
+- **↑ ↓** — move between rows
+- **← →** — pick time; number keys work too
+
+Click **✓** in the notch to complete a task. **Stop Focus** in the menu bar to end early.
 
 ## Built with
 
