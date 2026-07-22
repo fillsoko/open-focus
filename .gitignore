@@ -4,6 +4,7 @@ DerivedData/
 Package.resolved
 *.xcodeproj/
 .DS_Store
+.claude/
 dist/
 AppIcon.iconset/
 AppIcon.icns

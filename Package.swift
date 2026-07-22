@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "NotchMVP",
+    name: "OpenFocus",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "NotchMVP",
-            path: "Sources/NotchMVP"
+            name: "OpenFocus",
+            path: "Sources/OpenFocus"
         )
     ]
 )

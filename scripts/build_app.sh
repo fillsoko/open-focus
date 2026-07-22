@@ -4,7 +4,7 @@ set -euo pipefail
 APP_NAME="OpenFocus"
 BUNDLE_ID="com.fillsoko.openfocus"
 VERSION="0.2.0"
-BINARY="NotchMVP"
+BINARY="OpenFocus"
 BUILD_DIR=".build/release"
 DIST="dist"
 APP="$DIST/$APP_NAME.app"

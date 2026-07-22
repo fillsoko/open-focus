@@ -10,7 +10,9 @@
 
 **Focus on the Big 5 things that matter today.**
 
-<img src="assets/demo.gif" alt="OpenFocus demo" width="900">
+<img src="assets/screenshots/input-filled.png" alt="Fill in your Big 5" width="900">
+<img src="assets/screenshots/active.png" alt="Session active in the notch" width="900">
+<img src="assets/screenshots/confetti.png" alt="Confetti reward" width="900">
 
 [![Download](https://img.shields.io/badge/⬇%20Download-macOS-black?style=for-the-badge)](https://github.com/fillsoko/open-focus/releases/latest)
 &nbsp;
