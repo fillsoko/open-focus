@@ -8,3 +8,6 @@ dist/
 AppIcon.iconset/
 AppIcon.icns
 assets/wallpaper.jpg
+*.mov
+*.mp4
+Screen Recording*
