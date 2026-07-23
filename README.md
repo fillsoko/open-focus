@@ -70,4 +70,4 @@ Swift 5.9 · SwiftUI · AppKit · `NSPanel` overlay · `SMAppService` · zero th
 
 ## License
 
-MIT
+[MIT](LICENSE)
