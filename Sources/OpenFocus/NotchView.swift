@@ -13,6 +13,7 @@ struct NotchView: View {
     @ObservedObject var draft: DraftStore
     var notchWidth: CGFloat
     var notchHeight: CGFloat
+    var hitRegion: NotchHitRegion? = nil
     var onDone: () -> Void
     var onStop: () -> Void
 
@@ -48,11 +49,25 @@ struct NotchView: View {
         .init(topLeading: 0, bottomLeading: 20, bottomTrailing: 20, topTrailing: 0)
     }
 
+    // Reports the visible pill's rectangle (in global coordinates) to the
+    // hosting view so it can pass mouse events through everywhere else.
+    private var hitRegionReporter: some View {
+        GeometryReader { geo in
+            Color.clear
+                .onAppear { hitRegion?.frames = [geo.frame(in: .global)] }
+                .onChange(of: geo.frame(in: .global)) { newFrame in
+                    hitRegion?.frames = [newFrame]
+                }
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 Spacer()
-                container.frame(width: containerWidthValue)
+                container
+                    .frame(width: containerWidthValue)
+                    .background(hitRegionReporter)
                 Spacer()
             }
             Spacer()

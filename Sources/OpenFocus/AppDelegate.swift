@@ -8,6 +8,36 @@ final class NotchPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+/// Shared, mutable list of the rectangles the notch UI actually occupies, in
+/// SwiftUI-global (top-left origin) coordinates. `NotchView` keeps this updated
+/// as its layout changes; `PassthroughHostingView` reads it to decide which
+/// clicks to claim.
+final class NotchHitRegion {
+    var frames: [CGRect] = []
+}
+
+/// Hosting view that is transparent to the mouse everywhere except the visible
+/// notch content. Without this, the large (700×500) overlay panel would swallow
+/// clicks across the whole top-center of the screen, making it hard to click or
+/// drag windows and menu-bar items underneath it.
+final class PassthroughHostingView<Content: View>: NSHostingView<Content> {
+    var hitRegion: NotchHitRegion?
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // Until the layout has reported its frames, claim nothing so we never
+        // block the desktop.
+        guard let region = hitRegion else { return super.hitTest(point) }
+        let local = convert(point, from: superview)
+        // Normalize to top-left origin to match SwiftUI's global coordinates,
+        // regardless of whether the hosting view is flipped.
+        let p = isFlipped ? local : NSPoint(x: local.x, y: bounds.height - local.y)
+        for frame in region.frames where frame.contains(p) {
+            return super.hitTest(point)
+        }
+        return nil
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private let session = FocusSession()
     private let draft = DraftStore()
@@ -315,18 +345,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         panel.ignoresMouseEvents = false
         panel.hidesOnDeactivate = false
 
+        let region = NotchHitRegion()
         let view = NotchView(
             session: session,
             draft: draft,
             notchWidth: metrics.width,
             notchHeight: metrics.height,
+            hitRegion: region,
             onDone: { [weak self] in
                 self?.confetti.present()
                 self?.session.done()
             },
             onStop: { [weak self] in self?.session.stop() }
         )
-        let host = NSHostingView(rootView: view)
+        let host = PassthroughHostingView(rootView: view)
+        host.hitRegion = region
         host.frame = panel.contentView!.bounds
         host.autoresizingMask = [.width, .height]
         panel.contentView = host
