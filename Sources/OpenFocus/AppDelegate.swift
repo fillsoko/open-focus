@@ -33,6 +33,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             name: NSApplication.didChangeScreenParametersNotification,
             object: nil
         )
+
+        // Freeze the countdown while the machine is asleep, resume on wake, so
+        // sleep/hibernation doesn't drain the current task's time.
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        workspaceCenter.addObserver(
+            self,
+            selector: #selector(systemWillSleep),
+            name: NSWorkspace.willSleepNotification,
+            object: nil
+        )
+        workspaceCenter.addObserver(
+            self,
+            selector: #selector(systemDidWake),
+            name: NSWorkspace.didWakeNotification,
+            object: nil
+        )
+
+        // Restore an in-progress session across quit / restart.
+        if session.restore() {
+            showNotchPanel()
+            updateStatusTitle()
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        session.persist()
+    }
+
+    @objc private func systemWillSleep() {
+        session.suspendForSleep()
+    }
+
+    @objc private func systemDidWake() {
+        session.resumeFromSleep()
+        if session.isRunning, notchPanel == nil {
+            showNotchPanel()
+        }
     }
 
     @objc private func screensChanged() {
