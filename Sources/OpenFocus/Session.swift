@@ -50,6 +50,7 @@ final class FocusSession: ObservableObject {
     @Published var current: TaskItem?
     @Published var remaining: TimeInterval = 0
     @Published var isRunning: Bool = false
+    @Published var isPaused: Bool = false
     @Published var currentIndex: Int = 0
     @Published var totalPlanned: Int = 0
 
@@ -71,6 +72,7 @@ final class FocusSession: ObservableObject {
         guard !queue.isEmpty else {
             current = nil
             isRunning = false
+            isPaused = false
             remaining = 0
             currentIndex = 0
             totalPlanned = 0
@@ -83,6 +85,7 @@ final class FocusSession: ObservableObject {
         remaining = TimeInterval(next.minutes * 60)
         endDate = Date().addingTimeInterval(remaining)
         isRunning = true
+        isPaused = false
         onAdvance?()
         tick()
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
@@ -103,6 +106,31 @@ final class FocusSession: ObservableObject {
     func done() { advance() }
     func skip() { advance() }
 
+    func togglePause() {
+        isPaused ? resume() : pause()
+    }
+
+    /// Freeze the countdown (bio break, phone call, lunch, …). The remaining
+    /// time is captured and the timer stopped; the current task is preserved.
+    func pause() {
+        guard isRunning, !isPaused, let end = endDate else { return }
+        timer?.invalidate()
+        timer = nil
+        remaining = max(0, end.timeIntervalSinceNow)
+        isPaused = true
+    }
+
+    /// Resume counting down from where we paused.
+    func resume() {
+        guard isRunning, isPaused else { return }
+        endDate = Date().addingTimeInterval(remaining)
+        isPaused = false
+        tick()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.tick()
+        }
+    }
+
     func extend(minutes: Int) {
         guard let end = endDate else { return }
         endDate = end.addingTimeInterval(TimeInterval(minutes * 60))
@@ -115,6 +143,7 @@ final class FocusSession: ObservableObject {
         current = nil
         queue.removeAll()
         isRunning = false
+        isPaused = false
         remaining = 0
         currentIndex = 0
         totalPlanned = 0

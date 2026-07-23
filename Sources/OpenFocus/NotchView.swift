@@ -1,4 +1,12 @@
 import SwiftUI
+import UniformTypeIdentifiers
+
+extension UTType {
+    // Private in-process drag type for reordering task rows. Using a custom
+    // type (rather than .text) prevents the dragged payload from being
+    // interpreted as text if released over a TextField.
+    static let openFocusTaskRow = UTType(exportedAs: "com.openfocus.taskrow")
+}
 
 struct NotchView: View {
     @ObservedObject var session: FocusSession
@@ -12,6 +20,7 @@ struct NotchView: View {
     @State private var keyMonitor: Any?
     @State private var timeBuffer: String = ""
     @State private var timeBufferAt: Date = .distantPast
+    @State private var draggingID: UUID?
     @FocusState private var focused: RowField?
 
     enum RowField: Hashable {
@@ -280,7 +289,8 @@ struct NotchView: View {
     // MARK: - Active strip
 
     private var dotColor: Color {
-        session.remaining < 60 ? .red : .green
+        if session.isPaused { return .orange }
+        return session.remaining < 60 ? .red : .green
     }
 
     private var activeStrip: some View {
@@ -289,7 +299,9 @@ struct NotchView: View {
         return HStack(alignment: .center, spacing: 10) {
             TimelineView(.animation(minimumInterval: 0.05)) { context in
                 let t = context.date.timeIntervalSince1970
-                let opacity = 0.35 + 0.65 * (0.5 + 0.5 * sin(t * .pi / 0.65))
+                let opacity = session.isPaused
+                    ? 1.0
+                    : 0.35 + 0.65 * (0.5 + 0.5 * sin(t * .pi / 0.65))
                 Circle()
                     .fill(dotColor)
                     .frame(width: 9, height: 9)
@@ -317,6 +329,17 @@ struct NotchView: View {
                 .foregroundStyle(.white)
                 .monospacedDigit()
                 .frame(height: rowH)
+
+            Button(action: { session.togglePause() }) {
+                Image(systemName: session.isPaused ? "play.fill" : "pause.fill")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 16, height: 16)
+                    .background(Circle().fill(Color.orange.opacity(0.9)))
+            }
+            .buttonStyle(.plain)
+            .frame(height: rowH)
+            .help(session.isPaused ? "Resume" : "Pause (bio break, call, lunch…)")
 
             Button(action: onDone) {
                 Image(systemName: "checkmark")
@@ -370,6 +393,7 @@ struct NotchView: View {
 
     @ViewBuilder
     private func inputRow(index: Int, task: Binding<TaskItem>) -> some View {
+        let rowID = task.wrappedValue.id
         HStack(spacing: 10) {
             ZStack {
                 Circle()
@@ -378,6 +402,20 @@ struct NotchView: View {
                 Text("\(index)")
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.75))
+            }
+            .contentShape(Rectangle())
+            .help("Drag to reorder")
+            .onDrag {
+                draggingID = rowID
+                let provider = NSItemProvider()
+                provider.registerDataRepresentation(
+                    forTypeIdentifier: UTType.openFocusTaskRow.identifier,
+                    visibility: .ownProcess
+                ) { completion in
+                    completion(rowID.uuidString.data(using: .utf8), nil)
+                    return nil
+                }
+                return provider
             }
 
             TextField(
@@ -425,8 +463,17 @@ struct NotchView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 5)
+        .opacity(draggingID == rowID ? 0.5 : 1)
         .contentShape(Rectangle())
-        .onTapGesture { focused = .text(task.wrappedValue.id) }
+        .onTapGesture { focused = .text(rowID) }
+        .onDrop(
+            of: [.openFocusTaskRow],
+            delegate: TaskDropDelegate(
+                targetID: rowID,
+                tasks: $draft.tasks,
+                draggingID: $draggingID
+            )
+        )
     }
 
     private func cycleMinutes(for id: UUID, direction: MoveCommandDirection) {
@@ -501,4 +548,39 @@ private var startBar: some View {
             .frame(height: 1)
     }
 
+}
+
+// MARK: - Drag-to-reorder
+
+private struct TaskDropDelegate: DropDelegate {
+    let targetID: UUID
+    @Binding var tasks: [TaskItem]
+    @Binding var draggingID: UUID?
+
+    func validateDrop(info: DropInfo) -> Bool { draggingID != nil }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    // Live reorder: as the dragged row hovers over another row, move it into
+    // that slot so the list shuffles under the cursor.
+    func dropEntered(info: DropInfo) {
+        guard let dragging = draggingID,
+              dragging != targetID,
+              let from = tasks.firstIndex(where: { $0.id == dragging }),
+              let to = tasks.firstIndex(where: { $0.id == targetID })
+        else { return }
+        withAnimation(.easeInOut(duration: 0.18)) {
+            tasks.move(
+                fromOffsets: IndexSet(integer: from),
+                toOffset: to > from ? to + 1 : to
+            )
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingID = nil
+        return true
+    }
 }
