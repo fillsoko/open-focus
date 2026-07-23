@@ -251,8 +251,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         notchPanel = nil
         guard let screen = builtInScreen() else { return }
         let metrics = notchMetrics(for: screen)
-        let panelWidth: CGFloat = 700
-        let panelHeight: CGFloat = 500
+        // Size the panel to fit the max expanded UI state. Anything larger
+        // creates transparent regions that swallow mouse events meant for
+        // other apps' windows near the top of the screen. Confetti is
+        // rendered in its own separate window and doesn't need room here.
+        let containerWidth = max(metrics.width + 160, 380)
+        let panelWidth: CGFloat = containerWidth + 40
+        let panelHeight: CGFloat = 400
         let frame = screen.frame
         let originX = frame.midX - panelWidth / 2
         let originY = frame.maxY - panelHeight

@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_NAME="OpenFocus"
 BUNDLE_ID="com.fillsoko.openfocus"
-VERSION="0.2.0"
+VERSION="0.3.0"
 BINARY="OpenFocus"
 BUILD_DIR=".build/release"
 DIST="dist"

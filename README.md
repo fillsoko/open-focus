@@ -54,6 +54,17 @@ Todo apps buried in sidebars don't get opened. Timer apps ask you to think about
 
 **Download the DMG** from the [latest release](https://github.com/fillsoko/open-focus/releases/latest), drag `OpenFocus.app` to `Applications`, launch.
 
+> **First launch — macOS Gatekeeper**
+> OpenFocus is a free, open-source app and is **not distributed through the Mac App Store**, and it isn't signed with an Apple Developer ID (I'd rather not pay Apple $99/yr to ship a free notch timer). On first launch macOS will refuse to open it with a message like *"cannot be opened because Apple cannot check it for malicious software"*.
+>
+> To allow it:
+> 1. Try to open OpenFocus once (it will be blocked — that's expected).
+> 2. Open **System Settings → Privacy & Security**.
+> 3. Scroll down to the *Security* section — you'll see a note about OpenFocus being blocked. Click **Open Anyway**.
+> 4. Confirm with your password / Touch ID.
+>
+> You only need to do this once. Alternatively: right-click `OpenFocus.app` → **Open** → **Open** in the dialog.
+
 Or build from source:
 
 ```bash
