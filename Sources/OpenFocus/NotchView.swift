@@ -1,4 +1,12 @@
 import SwiftUI
+import UniformTypeIdentifiers
+
+extension UTType {
+    // Private in-process drag type for reordering task rows. Using a custom
+    // type (rather than .text) prevents the dragged payload from being
+    // interpreted as text if released over a TextField.
+    static let openFocusTaskRow = UTType(exportedAs: "com.openfocus.taskrow")
+}
 
 struct NotchView: View {
     @ObservedObject var session: FocusSession
@@ -12,6 +20,7 @@ struct NotchView: View {
     @State private var keyMonitor: Any?
     @State private var timeBuffer: String = ""
     @State private var timeBufferAt: Date = .distantPast
+    @State private var draggingID: UUID?
     @FocusState private var focused: RowField?
 
     enum RowField: Hashable {
@@ -370,6 +379,7 @@ struct NotchView: View {
 
     @ViewBuilder
     private func inputRow(index: Int, task: Binding<TaskItem>) -> some View {
+        let rowID = task.wrappedValue.id
         HStack(spacing: 10) {
             ZStack {
                 Circle()
@@ -378,6 +388,20 @@ struct NotchView: View {
                 Text("\(index)")
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.75))
+            }
+            .contentShape(Rectangle())
+            .help("Drag to reorder")
+            .onDrag {
+                draggingID = rowID
+                let provider = NSItemProvider()
+                provider.registerDataRepresentation(
+                    forTypeIdentifier: UTType.openFocusTaskRow.identifier,
+                    visibility: .ownProcess
+                ) { completion in
+                    completion(rowID.uuidString.data(using: .utf8), nil)
+                    return nil
+                }
+                return provider
             }
 
             TextField(
@@ -425,8 +449,17 @@ struct NotchView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 5)
+        .opacity(draggingID == rowID ? 0.5 : 1)
         .contentShape(Rectangle())
-        .onTapGesture { focused = .text(task.wrappedValue.id) }
+        .onTapGesture { focused = .text(rowID) }
+        .onDrop(
+            of: [.openFocusTaskRow],
+            delegate: TaskDropDelegate(
+                targetID: rowID,
+                tasks: $draft.tasks,
+                draggingID: $draggingID
+            )
+        )
     }
 
     private func cycleMinutes(for id: UUID, direction: MoveCommandDirection) {
@@ -501,4 +534,39 @@ private var startBar: some View {
             .frame(height: 1)
     }
 
+}
+
+// MARK: - Drag-to-reorder
+
+private struct TaskDropDelegate: DropDelegate {
+    let targetID: UUID
+    @Binding var tasks: [TaskItem]
+    @Binding var draggingID: UUID?
+
+    func validateDrop(info: DropInfo) -> Bool { draggingID != nil }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    // Live reorder: as the dragged row hovers over another row, move it into
+    // that slot so the list shuffles under the cursor.
+    func dropEntered(info: DropInfo) {
+        guard let dragging = draggingID,
+              dragging != targetID,
+              let from = tasks.firstIndex(where: { $0.id == dragging }),
+              let to = tasks.firstIndex(where: { $0.id == targetID })
+        else { return }
+        withAnimation(.easeInOut(duration: 0.18)) {
+            tasks.move(
+                fromOffsets: IndexSet(integer: from),
+                toOffset: to > from ? to + 1 : to
+            )
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingID = nil
+        return true
+    }
 }
