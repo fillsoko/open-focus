@@ -289,7 +289,8 @@ struct NotchView: View {
     // MARK: - Active strip
 
     private var dotColor: Color {
-        session.remaining < 60 ? .red : .green
+        if session.isPaused { return .orange }
+        return session.remaining < 60 ? .red : .green
     }
 
     private var activeStrip: some View {
@@ -298,7 +299,9 @@ struct NotchView: View {
         return HStack(alignment: .center, spacing: 10) {
             TimelineView(.animation(minimumInterval: 0.05)) { context in
                 let t = context.date.timeIntervalSince1970
-                let opacity = 0.35 + 0.65 * (0.5 + 0.5 * sin(t * .pi / 0.65))
+                let opacity = session.isPaused
+                    ? 1.0
+                    : 0.35 + 0.65 * (0.5 + 0.5 * sin(t * .pi / 0.65))
                 Circle()
                     .fill(dotColor)
                     .frame(width: 9, height: 9)
@@ -326,6 +329,17 @@ struct NotchView: View {
                 .foregroundStyle(.white)
                 .monospacedDigit()
                 .frame(height: rowH)
+
+            Button(action: { session.togglePause() }) {
+                Image(systemName: session.isPaused ? "play.fill" : "pause.fill")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 16, height: 16)
+                    .background(Circle().fill(Color.orange.opacity(0.9)))
+            }
+            .buttonStyle(.plain)
+            .frame(height: rowH)
+            .help(session.isPaused ? "Resume" : "Pause (bio break, call, lunch…)")
 
             Button(action: onDone) {
                 Image(systemName: "checkmark")
